@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LiveScore</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background: #0a0a0a; color: white; font-family: system-ui; }
+    .glass { background: rgba(255,255,255,0.08); backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.12); }
+    .live-dot { animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+  </style>
+</head>
+<body class="min-h-screen pb-20">
+  <div class="max-w-md mx-auto bg-black min-h-screen">
+    <!-- Header -->
+    <div class="sticky top-0 glass p-4 flex items-center justify-between border-b border-white/10">
+      <div class="flex items-center gap-2">
+        <span class="text-3xl">⚽</span>
+        <h1 class="text-2xl font-bold">LiveScore</h1>
+      </div>
+      <button onclick="refreshAll()" class="px-5 py-2 rounded-xl glass text-sm flex items-center gap-1">
+        🔄 Refresh
+      </button>
+    </div>
+
+    <!-- Player Search -->
+    <div class="p-4 border-b border-white/10">
+      <div class="flex gap-2">
+        <input id="player-input" type="text" placeholder="Search players (e.g. messi)" 
+               class="flex-1 p-3 glass rounded-2xl text-sm focus:outline-none">
+        <button onclick="searchPlayers()" class="px-6 bg-green-600 hover:bg-green-500 rounded-2xl font-medium">Search</button>
+      </div>
+    </div>
+
+    <!-- Live Matches -->
+    <div class="p-4">
+      <h2 class="text-lg font-semibold mb-3 flex items-center gap-2">
+        <span class="w-3 h-3 bg-green-500 rounded-full live-dot"></span>
+        LIVE MATCHES
+      </h2>
+      <div id="live-section" class="space-y-3"></div>
+    </div>
+
+    <!-- Upcoming -->
+    <div class="p-4 pt-0">
+      <h2 class="text-lg font-semibold mb-3">Upcoming Matches</h2>
+      <div id="upcoming-section" class="space-y-3"></div>
+    </div>
+
+    <!-- Players -->
+    <div class="p-4 pt-0">
+      <h2 class="text-lg font-semibold mb-3">Players</h2>
+      <div id="players-section" class="space-y-3"></div>
+    </div>
+
+    <!-- Bottom Navigation -->
+    <div class="fixed bottom-0 left-0 right-0 max-w-md mx-auto glass border-t border-white/10 p-2">
+      <div class="flex justify-around text-xs">
+        <div class="text-center text-green-400">🏠 Home</div>
+        <div class="text-center">📺 Live</div>
+        <div class="text-center">📅 Matches</div>
+        <div class="text-center">📰 News</div>
+        <div class="text-center">👤 Profile</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_KEY = "7d94871442mshb01a2c786147e7ap11eeb7jsne19444b27510";
+    const BASE_URL = "https://free-api-live-football-data.p.rapidapi.com";
+
+    async function apiCall(endpoint, params = {}) {
+      const url = new URL(BASE_URL + endpoint);
+      Object.keys(params).forEach(k => url.searchParams.append(k, params[k]));
+
+      const res = await fetch(url, {
+        headers: {
+          "x-rapidapi-key": API_KEY,
+          "x-rapidapi-host": "free-api-live-football-data.p.rapidapi.com"
+        }
+      });
+      return res.json();
+    }
+
+    async function loadLiveMatches() {
+      const div = document.getElementById('live-section');
+      div.innerHTML = `<p class="text-center text-gray-400 py-6">Loading live matches...</p>`;
+
+      try {
+        // Common endpoints - try one by one
+        const data = await apiCall('/football-live-scores'); // Try this first
+        if (!data || !data.length) throw new Error("No data");
+
+        let html = '';
+        data.forEach(m => {
+          html += `
+            <div class="glass rounded-3xl p-4">
+              <div class="text-xs text-gray-400 mb-2">${m.league_name || 'League'}</div>
+              <div class="flex justify-between items-center">
+                <div class="text-center flex-1">
+                  <div class="font-medium">${m.home_team || 'Home'}</div>
+                  <div class="text-3xl font-bold mt-1">${m.home_score || 0}</div>
+                </div>
+                <div class="text-center text-green-400 font-bold text-xl px-4">VS</div>
+                <div class="text-center flex-1">
+                  <div class="font-medium">${m.away_team || 'Away'}</div>
+                  <div class="text-3xl font-bold mt-1">${m.away_score || 0}</div>
+                </div>
+              </div>
+              <div class="text-center text-xs text-green-400 mt-2">${m.status || 'LIVE'}</div>
+            </div>`;
+        });
+        div.innerHTML = html || `<p class="text-gray-400 text-center py-8">No live matches right now</p>`;
+      } catch(e) {
+        div.innerHTML = `<p class="text-yellow-400 text-center py-8">Live endpoint not responding.<br>Try later or contact API support.</p>`;
+      }
+    }
+
+    async function loadUpcoming() {
+      const div = document.getElementById('upcoming-section');
+      div.innerHTML = `<p class="text-center text-gray-400 py-6">Loading upcoming...</p>`;
+
+      try {
+        const data = await apiCall('/football-fixtures', { date: '2026-06-26' }); // Change date if needed
+        // ... similar rendering logic
+        div.innerHTML = `<p class="text-gray-400 text-center py-8">Upcoming matches coming soon</p>`;
+      } catch(e) {
+        div.innerHTML = `<p class="text-gray-400 text-center py-8">Upcoming section loading...</p>`;
+      }
+    }
+
+    async function searchPlayers() {
+      const query = document.getElementById('player-input').value.trim() || "messi";
+      const div = document.getElementById('players-section');
+      div.innerHTML = `<p class="text-center text-gray-400 py-6">Searching...</p>`;
+
+      try {
+        const data = await apiCall('/football-players-search', { search: query });
+        let html = '';
+        if (Array.isArray(data) && data.length > 0) {
+          data.slice(0, 6).forEach(p => {
+            html += `
+              <div class="glass rounded-3xl p-4 flex gap-4 items-center">
+                <div class="w-12 h-12 bg-zinc-700 rounded-2xl"></div>
+                <div>
+                  <div class="font-semibold">${p.name || p.player_name || 'Player'}</div>
+                  <div class="text-sm text-gray-400">${p.team || p.club || 'Unknown'}</div>
+                </div>
+              </div>`;
+          });
+        } else {
+          html = `<p class="text-gray-400 text-center py-8">No players found for "${query}"</p>`;
+        }
+        div.innerHTML = html;
+      } catch(e) {
+        div.innerHTML = `<p class="text-red-400 text-center py-8">Player search failed</p>`;
+      }
+    }
+
+    function refreshAll() {
+      loadLiveMatches();
+      searchPlayers();
+    }
+
+    // Auto load
+    window.onload = () => {
+      loadLiveMatches();
+      searchPlayers();
+    };
+  </script>
+</body>
+</html>
